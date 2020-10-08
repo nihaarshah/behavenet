@@ -69,6 +69,7 @@ def add_dependent_params(parser, namespace):
             or namespace.model_class == 'cond-ae' \
             or namespace.model_class == 'cond-ae-msp' \
             or namespace.model_class == 'sss-vae' \
+            or namespace.model_class == 'vae-gan' \
             or namespace.model_class == 'labels-images':
 
         max_latents = 64
@@ -90,6 +91,7 @@ def add_dependent_params(parser, namespace):
 
     else:
         if getattr(namespace, 'n_latents', False):
+            # for e.g. neural-ae decoders
             parser.add_argument('--n_ae_latents', default=namespace.n_latents, type=int)
 
     if namespace.model_class.find('neural') > -1:

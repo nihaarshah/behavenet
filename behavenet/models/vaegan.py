@@ -78,6 +78,17 @@ class VAEGAN(VAE):
         else:
             self.beta_vals = hparams['vae.beta'] * np.ones(hparams['max_n_epochs'] + 1)
 
+    def build_model(self):
+        """Construct the model using hparams."""
+        self.hparams['hidden_layer_size'] = self.hparams['n_ae_latents']
+        if self.model_type == 'conv':
+            self.encoding = ConvAEEncoder(self.hparams)
+            self.decoding = ConvAEDecoder(self.hparams)
+            # TODO: will this work?
+            # self.discriminator = ConvAEEncoder(self.hparams)
+        else:
+            raise ValueError('"%s" is an invalid model_type' % self.model_type)
+
     def forward(self, x, dataset=None, use_mean=False, **kwargs):
         """Process input data.
 
@@ -185,147 +196,3 @@ class VAEGAN(VAE):
             'loss_mse': loss_mse_val, 'beta': beta}
 
         return loss_dict
-
-
-class ConvDecoder(BaseModel):
-    """Decode images from predictors with a convolutional decoder."""
-
-    def __init__(self, hparams):
-        """
-
-        Parameters
-        ----------
-        hparams : :obj:`dict`
-            - 'model_type' (:obj:`int`): 'conv' | 'linear'
-            - 'model_class' (:obj:`str`): 'conv-decoder'
-            - 'y_pixels' (:obj:`int`)
-            - 'x_pixels' (:obj:`int`)
-            - 'n_input_channels' (:obj:`int`)
-            - 'n_labels' (:obj:`int`)
-            - 'fit_sess_io_layers; (:obj:`bool`): fit session-specific input/output layers
-            - 'ae_decoding_x_dim' (:obj:`list`)
-            - 'ae_decoding_y_dim' (:obj:`list`)
-            - 'ae_decoding_n_channels' (:obj:`list`)
-            - 'ae_decoding_kernel_size' (:obj:`list`)
-            - 'ae_decoding_stride_size' (:obj:`list`)
-            - 'ae_decoding_x_padding' (:obj:`list`)
-            - 'ae_decoding_y_padding' (:obj:`list`)
-            - 'ae_decoding_layer_type' (:obj:`list`)
-            - 'ae_decoding_starting_dim' (:obj:`list`)
-            - 'ae_decoding_last_FF_layer' (:obj:`bool`)
-
-        """
-        super(ConvDecoder, self).__init__()
-        self.hparams = hparams
-        self.model_type = self.hparams['model_type']
-        self.img_size = (
-                self.hparams['n_input_channels'],
-                self.hparams['y_pixels'],
-                self.hparams['x_pixels'])
-        self.decoding = None
-        self.build_model()
-
-    def __str__(self):
-        """Pretty print the model architecture."""
-        format_str = '\nConvolutional decoder architecture\n'
-        format_str += '------------------------\n'
-        format_str += self.decoding.__str__()
-        format_str += '\n'
-        return format_str
-
-    def build_model(self):
-        """Construct the model using hparams."""
-        self.hparams['hidden_layer_size'] = self.hparams['n_labels']
-        if self.model_type == 'conv':
-            from behavenet.models.aes import ConvAEDecoder
-            self.decoding = ConvAEDecoder(self.hparams)
-        elif self.model_type == 'linear':
-            from behavenet.models.aes import LinearAEDecoder
-            if self.hparams.get('fit_sess_io_layers', False):
-                raise NotImplementedError
-            self.decoding = LinearAEDecoder(self.hparams['n_labels'], self.img_size)
-        else:
-            raise ValueError('"%s" is an invalid model_type' % self.model_type)
-
-    def forward(self, x, dataset=None, **kwargs):
-        """Process input data.
-
-        Parameters
-        ----------
-        x : :obj:`torch.Tensor` object
-            input data
-        dataset : :obj:`int`
-            used with session-specific io layers
-
-        Returns
-        -------
-        :obj:`tuple`
-            - y (:obj:`torch.Tensor`): output of shape (n_frames, n_channels, y_pix, x_pix)
-            - x (:obj:`torch.Tensor`): hidden representation of shape (n_frames, n_latents)
-
-        """
-        if self.model_type == 'conv':
-            y = self.decoding(x, None, None, dataset=dataset)
-        elif self.model_type == 'linear':
-            y = self.decoding(x)
-        else:
-            raise ValueError('"%s" is an invalid model_type' % self.model_type)
-        return y
-
-    def loss(self, data, dataset=0, accumulate_grad=True, chunk_size=200):
-        """Calculate MSE loss for convolutional decoder.
-
-        The batch is split into chunks if larger than a hard-coded `chunk_size` to keep memory
-        requirements low; gradients are accumulated across all chunks before a gradient step is
-        taken.
-
-        Parameters
-        ----------
-        data : :obj:`dict`
-            batch of data; keys should include 'labels', 'images' and 'masks', if necessary
-        dataset : :obj:`int`, optional
-            used for session-specific io layers
-        accumulate_grad : :obj:`bool`, optional
-            accumulate gradient for training step
-        chunk_size : :obj:`int`, optional
-            batch is split into chunks of this size to keep memory requirements low
-
-        Returns
-        -------
-        :obj:`dict`
-            - 'loss' (:obj:`float`): mse loss
-
-        """
-
-        if self.hparams['device'] == 'cuda':
-            data = {key: val.to('cuda') for key, val in data.items()}
-
-        x = data['images'][0]
-        y = data['labels'][0]
-        m = data['masks'][0] if 'masks' in data else None
-
-        batch_size = x.shape[0]
-        n_chunks = int(np.ceil(batch_size / chunk_size))
-
-        loss_val = 0
-        for chunk in range(n_chunks):
-
-            idx_beg = chunk * chunk_size
-            idx_end = np.min([(chunk + 1) * chunk_size, batch_size])
-
-            x_in = x[idx_beg:idx_end]
-            y_in = y[idx_beg:idx_end]
-            m_in = m[idx_beg:idx_end] if m is not None else None
-            x_hat = self.forward(y_in, dataset=dataset)
-
-            loss = losses.mse(x_in, x_hat, m_in)
-
-            if accumulate_grad:
-                loss.backward()
-
-            # get loss value (weighted by batch size)
-            loss_val += loss.item() * (idx_end - idx_beg)
-
-        loss_val /= batch_size
-
-        return {'loss': loss_val}

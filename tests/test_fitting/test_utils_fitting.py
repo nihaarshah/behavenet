@@ -547,6 +547,25 @@ class TestClass:
         assert expt_dir == model_path
 
         # -------------------------
+        # vae-gan
+        # -------------------------
+        hparams['model_class'] = 'vae-gan'
+        hparams['model_type'] = 'conv'
+        hparams['n_ae_latents'] = 10
+        hparams['experiment_name'] = 'tt_expt'
+        model_path = os.path.join(
+            session_dir, hparams['model_class'], hparams['model_type'],
+            '%02i_latents' % hparams['n_ae_latents'], hparams['experiment_name'])
+
+        expt_dir = utils.get_expt_dir(
+            hparams, model_class=hparams['model_class'], model_type=hparams['model_type'],
+            expt_name=hparams['experiment_name'])
+        assert expt_dir == model_path
+
+        expt_dir = utils.get_expt_dir(hparams, model_class=None, model_type=None, expt_name=None)
+        assert expt_dir == model_path
+
+        # -------------------------
         # neural-ae/ae-neural
         # -------------------------
         hparams['model_class'] = 'neural-ae'

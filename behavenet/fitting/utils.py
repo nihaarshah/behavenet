@@ -351,7 +351,8 @@ def get_expt_dir(hparams, model_class=None, model_type=None, expt_name=None):
             or model_class == 'cond-vae' \
             or model_class == 'cond-ae' \
             or model_class == 'cond-ae-msp' \
-            or model_class == 'sss-vae':
+            or model_class == 'sss-vae' \
+            or model_class == 'vae-gan':
         model_path = os.path.join(
             model_class, model_type, '%02i_latents' % hparams['n_ae_latents'])
         if hparams.get('ae_multisession', None) is not None:
@@ -654,7 +655,8 @@ def get_model_params(hparams):
             or model_class == 'cond-vae' \
             or model_class == 'cond-ae' \
             or model_class == 'cond-ae-msp' \
-            or model_class == 'sss-vae':
+            or model_class == 'sss-vae' \
+            or model_class == 'vae-gan':
         hparams_less['n_ae_latents'] = hparams['n_ae_latents']
         hparams_less['fit_sess_io_layers'] = hparams['fit_sess_io_layers']
         hparams_less['learning_rate'] = hparams['learning_rate']

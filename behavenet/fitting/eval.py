@@ -338,6 +338,8 @@ def get_reconstruction(
         elif model.hparams['model_class'] == 'cond-vae':
             ims_recon, latents, _, _ = model(
                 inputs, dataset=dataset, labels=labels, labels_2d=labels_2d)
+        elif model.hparams['model_class'] == 'vae-gan':
+            raise NotImplementedError
         else:
             raise ValueError('Invalid model class %s' % model.hparams['model_class'])
     else:  # input is latents
